@@ -1,7 +1,8 @@
+package src;
 /*
  * ISC License
  *
- * Copyright (c) 2017-2019, Hunter WB <hunterwb.com>
+ * Copyright (c) 2017-2019, Hunter WB <hunterwb.com>, 2021 Keano Porcaro <keano@ransty.com>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,27 +17,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-import javax.swing.JFrame;
-import javax.swing.WindowConstants;
+import org.objectweb.asm.tree.ClassNode;
+
+import javax.swing.*;
 import java.applet.Applet;
 import java.applet.AppletContext;
 import java.applet.AppletStub;
 import java.applet.AudioClip;
-import java.awt.Desktop;
-import java.awt.Dimension;
-import java.awt.Image;
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.net.URLConnection;
-import java.net.URLStreamHandler;
+import java.awt.*;
+import java.io.*;
+import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidParameterException;
 import java.util.Enumeration;
@@ -44,6 +34,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 
 @SuppressWarnings("deprecation")
@@ -55,6 +46,11 @@ public final class SimpleClient implements AppletStub, AppletContext {
         SimpleClient c = load();
 
         Applet applet = c.loadApplet();
+
+        JarHelper helper = new JarHelper();
+        helper.parseJar(new JarFile("runescape.jar"));
+
+        //ClassNode clientClass = helper.getClasses().get("client.class");
 
         JFrame frame = new JFrame(c.title());
         frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
@@ -107,12 +103,52 @@ public final class SimpleClient implements AppletStub, AppletContext {
     }
 
     public Applet loadApplet() throws Exception {
+        if (downloadClient(gamepackUrl().toString())) {
+            System.out.println("Gamepack downloaded");
+        }
         Applet applet = (Applet) classLoader(gamepackUrl()).loadClass(initialClass()).getDeclaredConstructor().newInstance();
         applet.setStub(this);
         applet.setMaximumSize(appletMaxSize());
         applet.setMinimumSize(appletMinSize());
         applet.setPreferredSize(applet.getMinimumSize());
+        applet.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
         return applet;
+    }
+
+    public boolean downloadClient(String link) {
+        try {
+            URL url = new URL(link);
+            String referer = url.toExternalForm();
+
+            URLConnection uc = url.openConnection();
+
+            uc.addRequestProperty("Accept", "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5");
+            uc.addRequestProperty("Accept-Charset", "ISO-8859-1,utf-8;q=0.7,*;q=0.7");
+            uc.addRequestProperty("Accept-Encoding", "gzip,deflate");
+            uc.addRequestProperty("Accept-Language", "en-gb,en;q=0.5");
+            uc.addRequestProperty("Connection", "keep-alive");
+            uc.addRequestProperty("Host", "www.runescape.com");
+            uc.addRequestProperty("Keep-Alive", "300");
+            if (referer != null) {
+                uc.addRequestProperty("Referer", referer);
+            }
+            uc.addRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.8.0.6) Gecko/20060728 Firefox/1.5.0.6");
+
+            BufferedInputStream in = new BufferedInputStream(uc.getInputStream());
+            FileOutputStream fos = new FileOutputStream("runescape.jar");
+            BufferedOutputStream bout = new BufferedOutputStream(fos, 1024);
+            byte[] data = new byte[1024];
+            int x;
+            while ((x=in.read(data, 0, 1024))>=0) {
+                bout.write(data, 0, x);
+            }
+            bout.close();
+            in.close();
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     public String title() {
